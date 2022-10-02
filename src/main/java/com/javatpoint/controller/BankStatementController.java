@@ -1,19 +1,14 @@
 package com.javatpoint.controller;
 import java.io.*;
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import com.javatpoint.model.BankStatement;
 import com.javatpoint.service.BankStatementService;
 
@@ -25,28 +20,18 @@ public class BankStatementController
 //autowired the StudentService class
 @Autowired
 BankStatementService bankStatementService;
-@GetMapping(value = "/account",
-        produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-ResponseEntity<ByteArrayResource> all() throws IOException {
-    List<String[]> dataLines = new ArrayList<>();
-    dataLines.add(new String[]
-            { "John", "Doe", "38", "Comment Data\nAnother line of comment data" });
-    dataLines.add(new String[]
-            { "Jane", "Doe, Jr.", "19", "She said \"I'm being quoted\"" });
-
-    File csvOutputFile = new File("asdf.csv");
-    try (PrintWriter pw = new PrintWriter(csvOutputFile)) {
-        dataLines.stream()
-                .map(this::convertToCSV)
-                .forEach(pw::println);
-    } catch (FileNotFoundException e) {
-        throw new RuntimeException(e);
-    }
-
-    ByteArrayResource resource = new ByteArrayResource(read(csvOutputFile));
 
 
-   String filename = "file.csv";
+
+@GetMapping(value = "/account", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+ResponseEntity<ByteArrayResource> all(Date date) throws IOException {
+
+    List<BankStatement> accounts = bankStatementService.getAllAccounts();
+
+    byte[] byteArray = writeToCSV(accounts);
+
+    ByteArrayResource resource = new ByteArrayResource(byteArray);
+    String filename = "file.csv";
     return ResponseEntity.ok()
             .contentType(MediaType.APPLICATION_OCTET_STREAM)
             .contentLength(resource.contentLength())
@@ -54,54 +39,98 @@ ResponseEntity<ByteArrayResource> all() throws IOException {
             .body(resource);
 }
 
-    public byte[] read(File file) throws IOException {
+    @GetMapping(value = "/value")
+    double getValue(Date date) {
 
-        ByteArrayOutputStream ous = null;
-        InputStream ios = null;
-        try {
-            byte[] buffer = new byte[4096];
-            ous = new ByteArrayOutputStream();
-            ios = new FileInputStream(file);
-            int read = 0;
-            while ((read = ios.read(buffer)) != -1) {
-                ous.write(buffer, 0, read);
-            }
-        }finally {
-            try {
-                if (ous != null)
-                    ous.close();
-            } catch (IOException e) {
-            }
-
-            try {
-                if (ios != null)
-                    ios.close();
-            } catch (IOException e) {
-            }
+        List<BankStatement> accounts = bankStatementService.getAllAccounts();
+        double value = 0.0;
+        for (BankStatement item:
+             accounts) {
+            value += item.getAmount();
         }
-        return ous.toByteArray();
+
+        return value;
     }
 
-    public String convertToCSV(String[] data) {
-        return Stream.of(data)
-                .map(this::escapeSpecialCharacters)
-                .collect(Collectors.joining(","));
-    }
 
-    public String escapeSpecialCharacters(String data) {
-        String escapedData = data.replaceAll("\\R", " ");
-        if (data.contains(",") || data.contains("\"") || data.contains("'")) {
-            data = data.replace("\"", "\"\"");
-            escapedData = "\"" + data + "\"";
+    private static byte[] writeToCSV(List<BankStatement> bankStatementList)
+    {
+        try
+        {
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(baos));
+            for (BankStatement bankStatement : bankStatementList)
+            {
+                StringBuffer oneLine = new StringBuffer();
+                oneLine.append(bankStatement.getAccountId());
+                oneLine.append("\t");
+                oneLine.append(bankStatement.getOpDate());
+                oneLine.append("\t");
+                oneLine.append(bankStatement.getBenef());
+                oneLine.append("\t");
+                oneLine.append(bankStatement.getComment());
+                oneLine.append("\t");
+                oneLine.append(bankStatement.getAmount());
+                oneLine.append("\t");
+                oneLine.append(bankStatement.getCurrency());
+                oneLine.append("\t");
+                bw.write(oneLine.toString());
+                bw.newLine();
+            }
+
+            bw.flush();
+            bw.close();
+
+            byte[] bytes = baos.toByteArray();
+            return bytes;
+
+
         }
-        return escapedData;
-    }
-    // end::get-aggregate-root[]
+        catch (UnsupportedEncodingException e) {
+            int a= 0;
+        }
+        catch (FileNotFoundException e){
+            int a= 0;
+        }
+        catch (IOException e){
+            int a= 0;
+        }
 
-    @PostMapping("/accounts")
-    BankStatement newEmployee(@RequestBody BankStatement test) {
-
-        bankStatementService.saveOrUpdate(test);
-        return test;
+        return null;
     }
+
+    @RequestMapping(value = "/accounts", method = RequestMethod.POST, consumes="application/json")
+    BankStatement newEmployee(@RequestBody BankStatementHelper bytes) {
+
+
+        String s = new String(bytes.bytes);
+        s = s.replaceAll("[\\r\\n]+",";");
+        String[] a = s.split(";");
+
+
+        int statementCount = a.length / 6;
+
+        for (int  i = 0; statementCount > i; statementCount--)
+        {
+            BankStatement newStatement = new BankStatement();
+            newStatement.setAccountId(a[0]);
+            newStatement.setBenef(a[1]);
+            newStatement.setAmount(Double.parseDouble(a[2]));
+            newStatement.setComment(a[3]);
+            newStatement.setCurrency(a[4]);
+            newStatement.setOpDate( new Date());
+
+            bankStatementService.saveOrUpdate(newStatement);
+        }
+
+
+        return null;
+    }
+
+
+
 }
+
+
+

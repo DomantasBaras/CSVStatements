@@ -1,8 +1,5 @@
 package com.javatpoint.model;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import javax.persistence.*;
 import java.util.Date;
 
 //mark class as an Entity
@@ -14,6 +11,7 @@ public class BankStatement
 
     @Id
     @Column
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     @Column
     private String AccountId;
@@ -81,7 +79,9 @@ public class BankStatement
     {
         this.OpDate = opDate;
     }
-
+    public void setAmount(double amount){
+        this.Amount = amount;
+    }
 
     public String getCurrency()
     {
